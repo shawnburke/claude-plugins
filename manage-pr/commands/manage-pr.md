@@ -71,10 +71,10 @@ After creating (or finding) the PR, monitor both CI status and review comments s
 On each iteration of the loop:
 
 1. **Check CI status**: Run `gh pr view <number> --json statusCheckRollup` to get current check status.
-2. **Check for review comments**: Run `gh pr view <number> --json reviews,comments` and `gh api repos/<owner>/<repo>/pulls/<number>/comments` to find unaddressed review comments.
+2. **Check for review comments**: Run `gh pr view <number> --json reviews,comments` and `gh api repos/<owner>/<repo>/pulls/<number>/comments` to find unaddressed review comments. **Only consider comments whose body starts with `Claude:` or `@Claude` (case-insensitive).** Ignore all other comments — they are meant for human reviewers, not for this tool.
 3. **Take action on whatever needs attention:**
 
-   **If there are unaddressed review comments:**
+   **If there are unaddressed review comments (starting with `Claude:` or `@Claude`):**
    - Read and understand each comment.
    - If a comment requests a code change, make the change, stage, commit (referencing the feedback), and push.
    - If a comment is a question or discussion, reply to it on the PR using `gh pr comment` or `gh api` to reply to the specific review comment.
@@ -114,7 +114,7 @@ On each iteration of the loop:
 
 If CI fails more than 5 times consecutively on the same check (not counting transient/flaky reruns), stop and ask the user for help.
 
-**Exit condition:** CI is green AND there are no unaddressed review comments. Proceed to Phase 3.
+**Exit condition:** CI is green AND there are no unaddressed `Claude:`/`@Claude` review comments. Proceed to Phase 3.
 
 ### Phase 3: Completion
 
