@@ -1,6 +1,10 @@
 {
   "name": "shawnburke-plugins",
   "description": "Claude Code plugins by shawnburke",
+  "owner": {
+    "name": "shawnburke",
+    "email": "shawn@shawnburke.com"
+  },
   "plugins": [
     {
       "name": "manage-pr",
