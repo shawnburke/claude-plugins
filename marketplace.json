@@ -1,0 +1,15 @@
+{
+  "name": "shawnburke-plugins",
+  "description": "Claude Code plugins by shawnburke",
+  "plugins": [
+    {
+      "name": "manage-pr",
+      "description": "Create a PR and shepherd it to completion — monitors CI, fixes failures, addresses review comments.",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/shawnburke/claude-plugins.git",
+        "path": "manage-pr"
+      }
+    }
+  ]
+}
