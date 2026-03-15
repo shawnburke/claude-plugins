@@ -82,16 +82,37 @@ On each iteration of the loop:
    **If CI has failed:**
    - Identify which check(s) failed: `gh pr checks <number>`.
    - Fetch logs for the failed run: `gh run view <run-id> --log-failed` (get the run ID from checks output).
-   - Analyze the failure and understand the root cause.
+   - Analyze the failure logs and classify it before taking action:
+
+   **Transient / infrastructure failures — rerun without code changes:**
+   These are failures unrelated to the code in this PR. Rerun them with `gh run rerun <run-id> --failed` and continue monitoring. Examples:
+   - Network errors (DNS resolution, connection timeouts, TLS handshake failures)
+   - Docker/container pull failures or registry timeouts
+   - Resource exhaustion on the runner (out of memory, disk full) not caused by this PR's code
+   - GitHub Actions infrastructure errors (runner offline, service unavailable)
+   - Package registry failures (npm, pip, Maven download errors)
+   - Rate limiting from external services
+
+   **Flaky tests — rerun if unrelated to current changes:**
+   If a test failure does not have a clear connection to the changes in this PR, it is likely flaky. To decide:
+   1. Look at which files the PR changed and what the failing test covers.
+   2. If the test is in an unrelated area, or the error is non-deterministic (e.g., timing, race condition, order-dependent), rerun with `gh run rerun <run-id> --failed`.
+   3. If the same test fails again after rerun with the same error, treat it as a real failure.
+
+   Do not rerun the same failed job more than 2 times. If it fails a third time, treat it as a real failure.
+
+   **Real failures — fix the code:**
+   If the failure is clearly caused by changes in this PR (compilation error, test assertion directly related to modified code, linting error on changed files):
+   - Understand the root cause.
    - Fix the issue in the code.
    - Stage, commit (with a message describing what CI failure is being fixed), and push.
 
    **If both comments and CI failures exist**, address the review comments first (since the push to fix comments will trigger a new CI run anyway, and the CI failure may be related to the requested changes).
 
-4. **After pushing any changes**, sleep for the CI interval and loop back to step 1 to monitor the new run.
+4. **After pushing any changes or rerunning a job**, sleep for the CI interval and loop back to step 1 to monitor the new run.
 5. **If nothing needs attention** (CI is still pending, no new comments), sleep for the CI interval and check again. Time out after 30 minutes of no progress.
 
-If CI fails more than 5 times consecutively on the same check, stop and ask the user for help.
+If CI fails more than 5 times consecutively on the same check (not counting transient/flaky reruns), stop and ask the user for help.
 
 **Exit condition:** CI is green AND there are no unaddressed review comments. Proceed to Phase 3.
 
@@ -101,6 +122,7 @@ CI is green and all comments are addressed. Display a summary:
 
 - PR URL
 - Number of CI fix iterations performed (0 if CI passed on first try)
+- Number of transient/flaky CI reruns (0 if none)
 - Number of review comments addressed (0 if none)
 - Final status: ready for review / ready to merge
 
