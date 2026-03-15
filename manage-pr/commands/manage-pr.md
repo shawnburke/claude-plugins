@@ -4,6 +4,16 @@ allowed-tools: Bash(gh:*), Bash(git:*), Read, Write, Edit, Grep, Glob, Agent
 argument-hint: "[base-branch] [--ci-interval SECONDS] [--comment-interval SECONDS] [--rebase]"
 ---
 
+## Preflight Check
+
+Verify that `gh` is installed and authenticated:
+
+```!
+gh auth status 2>&1 || echo "PREFLIGHT_FAILED: gh CLI is not installed or not authenticated. Install it from https://cli.github.com/ and run 'gh auth login'."
+```
+
+If the preflight check failed, inform the user and stop. Do not proceed with any other phases.
+
 ## Context
 
 - Current git status: !`git status`
@@ -20,6 +30,19 @@ Parse `$ARGUMENTS` for the following options. All are optional:
 - **`--ci-interval SECONDS`**: How often to poll CI status, in seconds. Default: `15`.
 - **`--comment-interval SECONDS`**: How often to poll for new review comments, in seconds. Default: `60`.
 - **`--rebase`**: Before pushing, rebase the branch onto the latest HEAD of the base branch. Resolves conflicts if possible; if conflicts cannot be resolved automatically, stop and ask the user for help.
+
+## Warm Up Tool Permissions
+
+Before starting the workflow, run the following commands so the user can approve all necessary permissions up front rather than being prompted mid-workflow. Run all of these in a single message:
+
+1. `git status` — git read access
+2. `git add --dry-run .` — git staging
+3. `gh pr list --limit 1` — gh PR read access
+4. `gh pr checks --help 2>/dev/null || true` — gh CI status access
+5. `gh api rate_limit` — gh API access
+6. `gh run list --limit 1` — gh run log access
+
+These are no-ops that establish the permission patterns (`git:*`, `gh pr:*`, `gh api:*`, `gh run:*`) so the user won't be interrupted during the actual workflow.
 
 ## Task: Create and Shepherd a Pull Request
 

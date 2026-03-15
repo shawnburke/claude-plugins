@@ -57,8 +57,13 @@ If new comments arrive after completion, just run `/manage-pr` again.
 
 #### Requirements
 
-- [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated
-- A git repository with a remote
+- [Claude Code](https://claude.ai/code)
+- [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated (`gh auth login`)
+- A git repository with a GitHub remote
+
+#### Permissions
+
+On first run, the command warms up tool permissions so you can approve all `git` and `gh` access patterns up front. This avoids being prompted for each individual command mid-workflow.
 
 #### Safety
 
