@@ -4,17 +4,19 @@ Claude Code plugins by shawnburke.
 
 ## Installation
 
-Add the marketplace:
+Inside a Claude Code session, add the marketplace:
 
-```bash
-claude marketplace add https://raw.githubusercontent.com/shawnburke/claude-plugins/main/marketplace.json
+```
+/plugin marketplace add shawnburke/claude-plugins
 ```
 
-Then install any plugin:
+Then install a plugin:
 
-```bash
-claude plugin install manage-pr@shawnburke-plugins
 ```
+/plugin install manage-pr@shawnburke-claude-plugins
+```
+
+Or run `/plugin` and use the interactive Marketplaces tab to browse and install.
 
 ## Plugins
 
