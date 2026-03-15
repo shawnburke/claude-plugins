@@ -62,41 +62,40 @@ Execute each phase in order.
 
 If a PR already exists for this branch, skip creation and use the existing PR.
 
-### Phase 2: Monitor CI Status
+### Phase 2: Monitor CI and Review Comments
 
-Poll CI checks until they all pass or a failure is detected.
+After creating (or finding) the PR, monitor both CI status and review comments simultaneously. Do not wait for CI to pass before checking comments — address both as they come in.
 
-**How to poll:**
-Use `gh pr checks <number> --watch --fail-fast` if available. If `--watch` is not supported, poll manually by running `gh pr view <number> --json statusCheckRollup` in a bash loop, sleeping for the CI interval between checks. Time out after 30 minutes of polling.
+**Monitoring loop:**
 
-**On CI failure:**
-1. Identify which check(s) failed: `gh pr checks <number>`.
-2. Fetch logs for the failed run: `gh run view <run-id> --log-failed` (get the run ID from checks output).
-3. Analyze the failure and understand the root cause.
-4. Fix the issue in the code.
-5. Stage, commit (with a message describing what CI failure is being fixed), and push.
-6. Go back to the top of Phase 2 to monitor the new run.
+On each iteration of the loop:
+
+1. **Check CI status**: Run `gh pr view <number> --json statusCheckRollup` to get current check status.
+2. **Check for review comments**: Run `gh pr view <number> --json reviews,comments` and `gh api repos/<owner>/<repo>/pulls/<number>/comments` to find unaddressed review comments.
+3. **Take action on whatever needs attention:**
+
+   **If there are unaddressed review comments:**
+   - Read and understand each comment.
+   - If a comment requests a code change, make the change, stage, commit (referencing the feedback), and push.
+   - If a comment is a question or discussion, reply to it on the PR using `gh pr comment` or `gh api` to reply to the specific review comment.
+
+   **If CI has failed:**
+   - Identify which check(s) failed: `gh pr checks <number>`.
+   - Fetch logs for the failed run: `gh run view <run-id> --log-failed` (get the run ID from checks output).
+   - Analyze the failure and understand the root cause.
+   - Fix the issue in the code.
+   - Stage, commit (with a message describing what CI failure is being fixed), and push.
+
+   **If both comments and CI failures exist**, address the review comments first (since the push to fix comments will trigger a new CI run anyway, and the CI failure may be related to the requested changes).
+
+4. **After pushing any changes**, sleep for the CI interval and loop back to step 1 to monitor the new run.
+5. **If nothing needs attention** (CI is still pending, no new comments), sleep for the CI interval and check again. Time out after 30 minutes of no progress.
 
 If CI fails more than 5 times consecutively on the same check, stop and ask the user for help.
 
-**On CI success:** proceed to Phase 3.
+**Exit condition:** CI is green AND there are no unaddressed review comments. Proceed to Phase 3.
 
-### Phase 3: Check for Unaddressed Review Comments
-
-Once CI is green, check for review comments that need attention.
-
-1. Fetch PR reviews and inline comments:
-   - `gh pr view <number> --json reviews,comments`
-   - `gh api repos/<owner>/<repo>/pulls/<number>/comments` for inline review comments
-2. Identify any unaddressed comments — comments requesting changes that haven't been resolved or replied to.
-3. If there are unaddressed comments:
-   a. Read and understand each comment.
-   b. If a comment requests a code change, make the change, stage, commit (referencing the feedback), and push.
-   c. If a comment is a question or discussion, reply to it on the PR using `gh pr comment` or `gh api` to reply to the specific review comment.
-   d. After pushing any changes, go back to Phase 2 to wait for CI to pass again.
-4. If there are no unaddressed comments, proceed to Phase 4.
-
-### Phase 4: Completion
+### Phase 3: Completion
 
 CI is green and all comments are addressed. Display a summary:
 
