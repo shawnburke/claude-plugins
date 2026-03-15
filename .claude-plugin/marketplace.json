@@ -9,7 +9,7 @@
     {
       "name": "manage-pr",
       "description": "Create a PR and shepherd it to completion — monitors CI, fixes failures, addresses review comments.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "shawnburke"
       },
