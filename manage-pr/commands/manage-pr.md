@@ -1,7 +1,7 @@
 ---
 description: Create a PR and monitor it until CI passes and all comments are addressed
-allowed-tools: Bash(gh:*), Bash(git:*), Read, Write, Edit, Grep, Glob, Agent, CronCreate, CronDelete, CronList
-argument-hint: "[base-branch]"
+allowed-tools: Bash(gh:*), Bash(git:*), Read, Write, Edit, Grep, Glob, Agent
+argument-hint: "[base-branch] [--ci-interval SECONDS] [--comment-interval SECONDS] [--rebase]"
 ---
 
 ## Context
@@ -12,81 +12,82 @@ argument-hint: "[base-branch]"
 - Recent commits on this branch: !`git log --oneline -10`
 - Remote tracking: !`git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "No upstream set"`
 
+## Parse Arguments
+
+Parse `$ARGUMENTS` for the following options. All are optional:
+
+- **Base branch**: The first positional argument (not starting with `--`). Defaults to `main`, or `master` if `main` doesn't exist on the remote.
+- **`--ci-interval SECONDS`**: How often to poll CI status, in seconds. Default: `15`.
+- **`--comment-interval SECONDS`**: How often to poll for new review comments, in seconds. Default: `60`.
+- **`--rebase`**: Before pushing, rebase the branch onto the latest HEAD of the base branch. Resolves conflicts if possible; if conflicts cannot be resolved automatically, stop and ask the user for help.
+
 ## Task: Create and Shepherd a Pull Request
 
-This is a multi-phase workflow. Execute each phase in order.
+Execute each phase in order.
 
 ### Phase 1: Create the Pull Request
 
 1. If there are uncommitted changes, stage and commit them with an appropriate message.
 2. If on `main` or `master`, create a new descriptive branch first.
-3. Push the branch to origin (use `-u` to set upstream).
-4. Determine the base branch: use `$ARGUMENTS` if provided, otherwise default to `main` (or `master` if `main` doesn't exist).
-5. Create the PR using `gh pr create`. Write a clear title and body summarizing the changes. Include a `## Test plan` section.
-6. Capture and display the PR URL and number.
+3. If `--rebase` was specified, rebase onto the latest base branch:
+   - `git fetch origin <base-branch>`
+   - `git rebase origin/<base-branch>`
+   - If there are conflicts, attempt to resolve them. If conflicts cannot be resolved, stop and ask the user for help.
+4. Push the branch to origin (use `-u` to set upstream). If the rebase rewrote history, use `--force-with-lease` (never `--force`).
+5. Create the PR using `gh pr create` against the base branch. Write a clear title and body summarizing the changes. Include a `## Test plan` section.
+6. Display the PR URL and number.
+
+If a PR already exists for this branch, skip creation and use the existing PR.
 
 ### Phase 2: Monitor CI Status
 
-After creating the PR, monitor CI checks by polling with `gh pr checks` and `gh pr view --json statusCheckRollup`.
+Poll CI checks until they all pass or a failure is detected.
 
-**Polling strategy:**
-- Poll every 15 seconds while checks are pending or in progress.
-- Use a bash loop for the tight polling since cron only supports minute-level granularity:
-  ```
-  Poll CI by running: gh pr checks <pr-number> --watch --fail-fast
-  ```
-  If `--watch` is available, prefer it. Otherwise, manually poll in a loop using `gh pr view <number> --json statusCheckRollup` every 15 seconds with a timeout of 30 minutes.
+**How to poll:**
+Use `gh pr checks <number> --watch --fail-fast` if available. If `--watch` is not supported, poll manually by running `gh pr view <number> --json statusCheckRollup` in a bash loop, sleeping for the CI interval between checks. Time out after 30 minutes of polling.
 
 **On CI failure:**
-1. Identify which check(s) failed using `gh pr checks <number>`.
-2. Fetch the failed check's logs: `gh run view <run-id> --log-failed` (extract the run ID from the checks output).
-3. Analyze the failure — understand the root cause.
+1. Identify which check(s) failed: `gh pr checks <number>`.
+2. Fetch logs for the failed run: `gh run view <run-id> --log-failed` (get the run ID from checks output).
+3. Analyze the failure and understand the root cause.
 4. Fix the issue in the code.
-5. Stage, commit, and push the fix.
-6. Return to the top of Phase 2 to monitor again.
+5. Stage, commit (with a message describing what CI failure is being fixed), and push.
+6. Go back to the top of Phase 2 to monitor the new run.
+
+If CI fails more than 5 times consecutively on the same check, stop and ask the user for help.
 
 **On CI success:** proceed to Phase 3.
 
-### Phase 3: Monitor for PR Comments
+### Phase 3: Check for Unaddressed Review Comments
 
-Once CI is green, set up recurring comment monitoring using CronCreate with a 1-minute interval (`*/1 * * * *`). The cron prompt should instruct the following:
+Once CI is green, check for review comments that need attention.
 
-**Cron prompt content:**
-> Check PR #<number> for new review comments. Run `gh pr view <number> --json reviews,comments` and `gh api repos/<owner>/<repo>/pulls/<number>/comments`. Compare against the last known comment count stored in `/tmp/manage-pr-<number>-comment-count`. If there are new comments:
-> 1. Read and understand each new comment
-> 2. Address the feedback by modifying code as requested
-> 3. Stage, commit, and push changes with a message referencing the feedback
-> 4. Reply to the comment on the PR using `gh pr comment` acknowledging the change
-> 5. Update the stored comment count
-> 6. After pushing, re-check CI status by running `gh pr checks <number> --watch --fail-fast` or polling `gh pr view <number> --json statusCheckRollup` every 15 seconds until checks complete. If CI fails, diagnose and fix as described in Phase 2.
->
-> If there are no new comments, do nothing.
->
-> If CI is green AND there have been no new comments for the last 3 consecutive checks, output: "PR #<number> is stable — CI green, no pending comments." and delete this cron job.
-
-Also initialize the comment count file:
-```bash
-gh pr view <number> --json comments,reviews --jq '.comments | length + (.reviews | length)' > /tmp/manage-pr-<number>-comment-count
-```
+1. Fetch PR reviews and inline comments:
+   - `gh pr view <number> --json reviews,comments`
+   - `gh api repos/<owner>/<repo>/pulls/<number>/comments` for inline review comments
+2. Identify any unaddressed comments — comments requesting changes that haven't been resolved or replied to.
+3. If there are unaddressed comments:
+   a. Read and understand each comment.
+   b. If a comment requests a code change, make the change, stage, commit (referencing the feedback), and push.
+   c. If a comment is a question or discussion, reply to it on the PR using `gh pr comment` or `gh api` to reply to the specific review comment.
+   d. After pushing any changes, go back to Phase 2 to wait for CI to pass again.
+4. If there are no unaddressed comments, proceed to Phase 4.
 
 ### Phase 4: Completion
 
-The workflow completes when:
-- CI is green
-- No new comments have appeared for 3 consecutive polling cycles
+CI is green and all comments are addressed. Display a summary:
 
-At completion, display a summary:
 - PR URL
-- Number of CI fix iterations
-- Number of comment rounds addressed
-- Final CI status
+- Number of CI fix iterations performed (0 if CI passed on first try)
+- Number of review comments addressed (0 if none)
+- Final status: ready for review / ready to merge
+
+The workflow is now complete. If new comments arrive later, the user can run `/manage-pr` again.
 
 ## Important Guidelines
 
-- Never force-push. Always create new commits for fixes.
+- Never force-push unless `--rebase` was specified, in which case use `--force-with-lease` (never `--force`) only after a rebase.
 - When addressing review comments, make targeted changes — do not refactor unrelated code.
-- If a comment is a question rather than a change request, reply to it on the PR without modifying code.
-- If CI fails more than 5 times consecutively on the same check, stop and ask the user for help rather than looping indefinitely.
 - If a review comment is unclear or contradictory, ask the user before making changes.
-- Keep commit messages descriptive: reference what feedback or CI failure is being addressed.
-- Use `gh api` for operations not directly supported by `gh pr` subcommands.
+- Keep commit messages descriptive: reference what CI failure or feedback is being addressed.
+- Use `gh api` for operations not directly supported by `gh pr` subcommands (e.g., replying to specific inline comments).
