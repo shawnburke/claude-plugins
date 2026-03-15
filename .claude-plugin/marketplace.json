@@ -5,11 +5,12 @@
     {
       "name": "manage-pr",
       "description": "Create a PR and shepherd it to completion — monitors CI, fixes failures, addresses review comments.",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/shawnburke/claude-plugins.git",
-        "path": "manage-pr"
-      }
+      "version": "0.1.0",
+      "author": {
+        "name": "shawnburke"
+      },
+      "source": "./manage-pr",
+      "category": "development"
     }
   ]
 }
